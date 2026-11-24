@@ -1,0 +1,175 @@
+# Studio OS — головна конфігурація (Етап 2, 2026-11-23).
+# Ключі API тут НЕ зберігаються — лише в .env (ELEVENLABS_API_KEY тощо).
+# Час публікацій — місцевий у `timezone`; перехід літо/зима враховується автоматично (zoneinfo + tzdata).
+
+[studio]
+timezone = "Europe/Kyiv"
+# manual | semi | auto  (див. [modes.*]); стартовий режим — ручний, доки не пройдено інтеграційні тести (Етап 8)
+mode = "manual"
+plan_horizon_weeks = 3          # на скільки тижнів наперед створювати слоти календаря
+db_path = "data/studio.db"
+log_dir = "data/logs"
+backup_dir = "data/backups"
+backups_keep = 14
+lease_seconds = 900             # оренда задачі; воркер продовжує її heartbeat-ом
+min_free_disk_gb = 10           # нижче — важкі задачі (render) не стартують
+
+# Графік (власник, ТЗ §3). day: mon tue wed thu fri sat sun
+[[schedule]]
+format = "short"
+days = ["mon", "tue", "wed", "thu", "fri"]
+time = "18:00"
+
+[[schedule]]
+format = "short"
+days = ["sat", "sun"]
+time = "11:00"
+
+[[schedule]]
+format = "long"
+days = ["tue", "thu", "sat"]
+time = "17:30"
+
+# Виробничі дедлайни: за скільки днів до публікації етап має бути завершений.
+# Порядок етапів — audio-first (channel/production-optimization.md §C): голос до розкадровки.
+[deadlines.short]
+research = 12
+planning = 11
+script = 9
+voice = 8
+storyboard = 7
+animation = 4
+edit = 3
+thumbnail = 3
+qc = 2
+approval = 2
+publish = 1
+
+[deadlines.long]
+research = 21
+planning = 20
+script = 16
+voice = 14
+storyboard = 12
+animation = 6
+edit = 4
+thumbnail = 4
+qc = 3
+approval = 2
+publish = 1
+
+# Режими (ТЗ §17). gates — етапи, після яких потрібне погодження людини.
+# auto_start = false → агенти не стартують самі, етап запускає користувач.
+[modes.manual]
+auto_start = false
+gates = ["research", "planning", "script", "voice", "storyboard", "animation", "edit", "thumbnail", "qc", "approval"]
+auto_publish = false
+
+[modes.semi]
+auto_start = true
+gates = ["planning", "script", "approval"]
+auto_publish = false
+
+[modes.auto]
+auto_start = true
+gates = []
+# автопублікація лише якщо QC = APPROVED і власник явно ввімкнув цей прапорець
+auto_publish = false
+
+# Конвеєр (власниця, 2026-11-24): усе саме, людина погоджує лише фінал; після погодження — публікація (private + publishAt)
+[modes.conveyor]
+auto_start = true
+gates = ["approval"]
+auto_publish = false
+
+# Ресурси з ємністю 1 (конфліктні задачі не виконуються одночасно).
+[resources]
+exclusive = ["remotion", "blender", "claude", "elevenlabs", "youtube_upload"]
+
+# Бюджети. period: day | week | month. Перевищення = задача не стартує (BLOCKED), а не мовчазний пропуск.
+[budgets.claude_sessions]
+period = "day"
+limit = 12
+
+[budgets.elevenlabs_chars]
+period = "month"
+limit = 0            # 0 = не задано: агент голосу запитає квоту через scripts/audio/elevenlabs.py account (Етап 3)
+
+[budgets.youtube_quota_units]
+period = "day"
+limit = 10000
+
+# ---- Етап 3: виробничі агенти ----
+[claude]
+# моделі Claude Code (аліаси CLI). ask — структуровані відповіді без інструментів; work — агентні сесії в теці студії.
+model_ask = "sonnet"
+model_work = "opus"
+timeout_ask_s = 900
+timeout_work_s = 14400
+
+[research]
+report_max_age_days = 6        # звіт трендів спільний для тижня; новіший не перераховується
+lookback_days = 30             # які відео конкурентів враховувати (вік)
+max_results = 25               # на один пошуковий запит (search.list = 100 од. квоти)
+region = "UA"
+language = "uk"
+comments_per_video = 15        # для топ-5 відео кожного запиту
+queries_uk = ["страшні історії анімація", "горор анімація", "правила виживання", "страшилки українською",
+              "крипі історії", "зомбі апокаліпсис анімація"]
+queries_en = ["horror animation story", "scary rules story animated", "survival horror animation",
+              "creepy text messages story", "doppelganger horror animation"]
+topics_per_report = 20
+
+[production]
+words_per_minute = 140         # темп диктора (рішення власника, еп. 017)
+# Швидкий режим (власник, 2026-11-24: «ненужні етапи викидаєм, не перевіряй по 20 раз — з помилками піде»):
+# false — кожна перевірка запускається ОДИН раз конвеєром (без токенів), знахідки стають попередженнями, без переробок;
+#         сценарій/розкадровка переробляються лише через структурні помилки (без них конвеєр не може йти далі).
+# true  — старий суворий режим: сесії самі ганяють перевірки до чистого результату, лінтер і check_* зупиняють етап.
+strict_checks = false
+# Автозапуск нових відео (режими з auto_start): скільки одночасно у виробництві й яких форматів.
+# Long агентами ще не проганявся — спершу тестовий прогін (як Shorts еп. 019), потім додати "long".
+max_in_progress = 1
+auto_formats = ["short"]
+short_target_s = [45, 75]
+# Голос (власник, 2026-11-23): ElevenLabs через ключ власника (ELEVENLABS_API_KEY у .env), диктор — True Crime, 140 сл/хв.
+narrator_voice = "NR"
+narrator_voice_id = "tZssYepgGaQmegsMEXjK"
+narrator_voice_name = "True - Crime & Horror Narrator"
+narrator_only = false          # власник, 2026-11-23: персонажі можуть мати власні голоси (лише вже використані студією; новий — кастинг власника)
+# штампи, які не мають повторюватися з відео у відео (ТЗ §6) — лінтер сценарію
+stock_phrases = ["я не міг повірити своїм очам", "і тоді я зрозумів", "це було лише початком",
+                 "я відчув, як кров холоне", "кров застигла в жилах", "серце пропустило удар",
+                 "мурашки побігли по шкірі", "холодний піт"]
+genres = ["psychological", "zombie", "mystic", "survival", "paranormal", "tech", "monster", "rules", "twist"]
+recent_genre_window = 5        # жанр не повторюється частіше ніж раз на N останніх відео формату (якщо є вибір)
+
+# ---- Етап 4: контроль якості (docs/studio-os/04-qc.md) ----
+[qc]
+llm_review = true              # рецензія Claude (A Story, E Style з переглядом кадрів); false — лише автоматика
+max_rounds = 1                 # 1 = без циклу переробок (власник, 2026-11-24): звіт QC іде на погодження; >1 — QC повертає на виправлення
+short_hook_s = 3.0             # перша репліка Shorts не пізніше (критично)
+short_max_s = 180              # ліміт Shorts YouTube
+short_gap_s = 4.0              # пауза без голосу (Shorts) — попередження
+long_gap_s = 8.0
+black_min_s = 0.5              # чорний кадр усередині відео (не початок/кінець) — критично
+freeze_min_s = 2.0             # застиглий кадр — major
+silence_min_s = 2.5            # повна цифрова тиша — minor
+head_s = 0.6                   # навмисне затемнення на вході
+tail_s = 2.0                   # фінальна склейка / кінцевий кадр
+subtitle_max_chars = 42
+max_words_per_s = 4.2          # швидше — підозра на обрізану/пришвидшену репліку
+# ваги модулів (сума 100): A story, B dialogue, C retention, D animation, E style, F audio, G editing, H youtube
+weights = { story = 20, dialogue = 10, retention = 15, animation = 15, style = 15, audio = 10, editing = 10, youtube = 5 }
+
+[maintenance]
+cleanup_frames = true          # власник, 2026-11-23: PNG-кадри після кодування можна видаляти
+cleanup_frames_min_match = 0.98  # частка кадрів у відео відносно PNG, щоб вважати кодування повним
+
+# ---- Етап 5: публікація YouTube (docs/studio-os/05-publish.md) ----
+[youtube]
+# OAuth-клієнт власниці: data/youtube/client_secret.json; вхід — `python -m studio_os youtube-auth` (канал запам'ятовується).
+language = "uk"
+category_id = "1"              # Фільми й анімація (якщо youtube.md не вказує іншу)
+captions = true                # SRT із subtitles/ як доріжка субтитрів (у Shorts текст ще й вшитий)
+min_lead_min = 20              # не планувати публікацію ближче ніж за N хв

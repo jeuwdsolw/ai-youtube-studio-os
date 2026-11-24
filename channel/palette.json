@@ -1,0 +1,39 @@
+{
+  "_comment": "Єдине джерело кольорів каналу. Читається Blender-скриптами (scripts/blender/lib/palette.py) і Remotion (video/src/lib/palette.ts). Змінювати лише за погодженням. v2 (2026-10-26): приглушено scripts/desaturate_palette.py, оригінал — palette.v1.json.",
+  "base": {
+    "void": "#090A0D",
+    "night": "#12141C",
+    "deep": "#1B1F29",
+    "shadow": "#2A2D39"
+  },
+  "supernatural": {
+    "dark": "#302940",
+    "mid": "#71618E",
+    "glow": "#A18EC9"
+  },
+  "tech": {
+    "dark": "#1F2F3D",
+    "mid": "#5E8BB0",
+    "glow": "#93C1E0"
+  },
+  "danger_room": {
+    "dark": "#1E2823",
+    "mid": "#516659",
+    "glow": "#87A087"
+  },
+  "warning": {
+    "dark": "#42381C",
+    "mid": "#A78E4F",
+    "glow": "#D1B76E"
+  },
+  "threat": {
+    "dark": "#441519",
+    "mid": "#B53E44",
+    "glow": "#EC5559"
+  },
+  "pale": {
+    "text": "#EAE7E3",
+    "dim": "#A7A5A2",
+    "ghost": "#DBDEE5"
+  }
+}
